@@ -1,0 +1,101 @@
+#!/bin/sh
+. pkg-mirror.conf
+
+
+mkdir -p ${DIR}
+
+help() {
+    cat << EOF
+pkg-mirror auto|fetch|update|clean
+EOF
+    exit 1
+}
+
+
+auto() {
+	echo "n.a."
+}
+
+clean() {
+    rm -r ${DIR}
+}
+
+update() {
+    for _file in `comm -13 /usr/local/pkg-mirror/meta/filelist /usr/local/pkg-mirror/meta/filelist.tmp`; do
+      echo "download new pkg ${URL}/${_file}"
+    done 
+    for _file in `comm -23 /usr/local/pkg-mirror/meta/filelist /usr/local/pkg-mirror/meta/filelist.tmp`; do
+      echo "delete ${DIR}/packages/All/${_file}"
+    done 
+}
+
+debug() {
+echo ${DIR}
+}
+
+fetch() {
+    mkdir -p ${DIR}/meta
+    mkdir -p ${DIR}/packages/All
+    #todo loop files
+    /usr/bin/fetch "$URL/packagesite.txz" -o "${DIR}/meta"
+    /usr/bin/fetch "$URL/packagesite.txz" -o "${DIR}/packages" 
+    /usr/bin/fetch "$URL/Latest" -o "${DIR}/packages"
+    /usr/bin/fetch "$URL/meta.conf" -o "${DIR}/packages"
+    /usr/bin/fetch "$URL/meta.pkg" -o "${DIR}/packages"
+    /usr/bin/fetch "$URL/meta.txz" -o "${DIR}/packages"
+    /usr/bin/fetch "$URL/packagesite.pkg" -o "${DIR}/packages"
+    /usr/bin/fetch "$URL/packagesite.txz" -o "${DIR}/packages"
+    tar xzf ${DIR}/meta/packagesite.txz -C ${DIR}/meta/
+    cat ${DIR}/meta/packagesite.yaml | jq -r .\|.repopath | sort > ${DIR}/meta/filelist.tmp
+    for _file in `cat ${DIR}/meta/filelist.tmp`; do
+        /usr/bin/fetch ${URL}/${_file} -o ${DIR}/packages/All 
+    done 
+    mv ${DIR}/meta/filelist.tmp ${DIR}/meta/filelist
+    rm ${DIR}/meta/packagesite.yaml*
+    exit 0
+}
+
+
+
+case "$1" in
+	auto|A|a|-help)
+	auto	
+	;;
+esac
+
+case "$1" in
+	help|-h|-help)
+	help	
+	;;
+esac
+
+case "$1" in
+	debug)
+        debug	
+	;;
+esac
+
+case "$1" in
+	fetch)
+	fetch	
+	;;
+esac
+
+case "$1" in
+	update)
+	update
+	;;
+esac
+
+case "$1" in
+	clean)
+	clean
+	;;
+esac
+
+if [ $# -eq 0 ];
+then 
+	echo 'Please run pkg-mirror auto'
+	exit 1
+fi
+
