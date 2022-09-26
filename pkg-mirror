@@ -1,6 +1,8 @@
 #!/bin/sh
 . pkg-mirror.conf
 
+URL=https://pkg.freebsd.org/FreeBSD:${REL}:${ARCH}/${CYCLE}
+DIR="${BASE_DIR}/${REL}/${ARCH}/${CYCLE}"
 
 mkdir -p ${DIR}
 
@@ -36,15 +38,7 @@ echo ${DIR}
 fetch() {
     mkdir -p ${DIR}/meta
     mkdir -p ${DIR}/packages/All
-    #todo loop files
     /usr/bin/fetch "$URL/packagesite.txz" -o "${DIR}/meta"
-    /usr/bin/fetch "$URL/packagesite.txz" -o "${DIR}/packages" 
-    /usr/bin/fetch "$URL/Latest" -o "${DIR}/packages"
-    /usr/bin/fetch "$URL/meta.conf" -o "${DIR}/packages"
-    /usr/bin/fetch "$URL/meta.pkg" -o "${DIR}/packages"
-    /usr/bin/fetch "$URL/meta.txz" -o "${DIR}/packages"
-    /usr/bin/fetch "$URL/packagesite.pkg" -o "${DIR}/packages"
-    /usr/bin/fetch "$URL/packagesite.txz" -o "${DIR}/packages"
     tar xzf ${DIR}/meta/packagesite.txz -C ${DIR}/meta/
     cat ${DIR}/meta/packagesite.yaml | jq -r .\|.repopath | sort > ${DIR}/meta/filelist.tmp
     for _file in `cat ${DIR}/meta/filelist.tmp`; do
