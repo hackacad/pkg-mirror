@@ -1,95 +1,67 @@
 #!/bin/sh
 . pkg-mirror.conf
 
-URL=https://pkg.freebsd.org/FreeBSD:${REL}:${ARCH}/${CYCLE}
-DIR="${BASE_DIR}/${REL}/${ARCH}/${CYCLE}"
+#TODO Makefile DEPENDS
+if ! command -v jq > /dev/null; then
+    echo "jq not found"
+    exit 1
+fi
 
+if ! command -v fetch > /dev/null; then
+    echo "fetch not found"
+    exit 1
+fi
+
+#TODO Makefile pre-install
 mkdir -p ${DIR}
 
-help() {
-    cat << EOF
-pkg-mirror auto|fetch|update|clean
-EOF
+log() {
+    echo "$(date) - ${1}" >> ${LOG_FILE}
+}
+
+error() {
+    log "Error: ${1}"
     exit 1
 }
 
-
-auto() {
-	echo "n.a."
-}
-
-clean() {
-    rm -r ${DIR}
-}
-
-update() {
-    for _file in `comm -13 /usr/local/pkg-mirror/meta/filelist /usr/local/pkg-mirror/meta/filelist.tmp`; do
-      echo "download new pkg ${URL}/${_file}"
-    done 
-    for _file in `comm -23 /usr/local/pkg-mirror/meta/filelist /usr/local/pkg-mirror/meta/filelist.tmp`; do
-      echo "delete ${DIR}/packages/All/${_file}"
-    done 
-}
-
-debug() {
-echo ${DIR}
-}
-
-fetch() {
-    mkdir -p ${DIR}/meta
-    mkdir -p ${DIR}/packages/All
-    /usr/bin/fetch "$URL/packagesite.txz" -o "${DIR}/meta"
-    tar xzf ${DIR}/meta/packagesite.txz -C ${DIR}/meta/
-    cat ${DIR}/meta/packagesite.yaml | jq -r .\|.repopath | sort > ${DIR}/meta/filelist.tmp
-    for _file in `cat ${DIR}/meta/filelist.tmp`; do
-        /usr/bin/fetch ${URL}/${_file} -o ${DIR}/packages/All 
-    done 
-    mv ${DIR}/meta/filelist.tmp ${DIR}/meta/filelist
-    rm ${DIR}/meta/packagesite.yaml*
-    exit 0
-}
-
-
-
-case "$1" in
-	auto|A|a|-help)
-	auto	
-	;;
-esac
-
-case "$1" in
-	help|-h|-help)
-	help	
-	;;
-esac
-
-case "$1" in
-	debug)
-        debug	
-	;;
-esac
-
-case "$1" in
-	fetch)
-	fetch	
-	;;
-esac
-
-case "$1" in
-	update)
-	update
-	;;
-esac
-
-case "$1" in
-	clean)
-	clean
-	;;
-esac
-
-if [ $# -eq 0 ];
-then 
-	echo 'Please run pkg-mirror auto'
-	exit 1
+if [ -z "${1}" ]; then
+    echo "Usage: pkg-mirror auto|fetch|update|clean"
+    exit 1
 fi
 
+if [ "${1}" = "clean" ]; then
+    rm -r ${DIR}
+    log "Cleaned directory ${DIR}"
+    exit 0
+fi
+
+if [ "${1}" = "fetch" ]; then
+    mkdir -p ${DIR}/meta
+    mkdir -p ${DIR}/packages/All
+    /usr/bin/fetch "$URL/packagesite.txz" -o "${DIR}/meta" || error "Failed to download packagesite.txz"
+    tar xzf ${DIR}/meta/packagesite.txz -C ${DIR}/meta/ || error "Failed to extract packagesite.txz"
+    cat ${DIR}/meta/packagesite.yaml | jq -r .\|.repopath | sort > ${DIR}/meta/filelist.tmp || error "Failed to generate filelist.tmp"
+    for _file in `cat ${DIR}/meta/filelist.tmp`; do
+        /usr/bin/fetch ${URL}/${_file} -o ${DIR}/packages/All || error "Failed to download ${URL}/${_file}"
+    done
+    mv ${DIR}/meta/filelist.tmp ${DIR}/meta/filelist || error "Failed to move filelist.tmp"
+    rm ${DIR}/meta/packagesite.yaml* || error "Failed to remove packagesite.yaml"
+    log "Fetched packages to ${DIR}"
+    exit 0
+fi
+
+if [ "${1}" = "update" ]; then
+    comm -13 /usr/local/pkg-mirror/meta/filelist /usr/local/pkg-mirror/meta/filelist.tmp | while read _file; do
+        /usr/bin/fetch ${URL}/${_file} -o ${DIR}/packages/All || error "Failed to download new pkg ${URL}/${_file}"
+    done
+    comm -23 /usr/local/pkg-mirror/meta/filelist /usr/local/pkg-mirror/meta/filelist.tmp | while read _file; do
+        rm -f ${DIR}/packages/All/${_file} || error "Failed to delete ${DIR}/packages/All/${_file}"
+    done
+    mv /usr/local/pkg-mirror/meta/filelist.tmp /usr/local/pkg-mirror/meta/filelist || error "Failed to move filelist.tmp"
+    log "Updated packages in ${DIR}"
+    exit 0
+fi
+
+# Display the help message if the argument is invalid
+echo "Usage: pkg-mirror fetch|update|clean"
+exit 1
