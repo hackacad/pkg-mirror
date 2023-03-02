@@ -1,2 +1,2 @@
 # pkg-mirror
-The missing script to clone FreeBSD pkg mirros
+The missing script to clone FreeBSD pkg mirrors
